@@ -1,0 +1,38 @@
+{
+  "name": "bookmark-cli",
+  "version": "0.1.0",
+  "description": "Mac/Linux ターミナルでディレクトリをブックマークし、CLI と MCP の両方から操作できるツール",
+  "main": "mcp/server.js",
+  "scripts": {
+    "test": "bats tests/",
+    "lint": "shellcheck cli/bmc.sh",
+    "format": "shfmt -w cli/bmc.sh",
+    "mcp-server": "node mcp/server.js"
+  },
+  "keywords": [
+    "bookmark",
+    "cli",
+    "terminal",
+    "directory",
+    "mcp",
+    "shell"
+  ],
+  "author": "Shinichi Nakazato <code_of_conduct@code-retriever.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "bats": "^1.10.0"
+  },
+  "dependencies": {
+    "grpc": "^1.24.11",
+    "@grpc/grpc-js": "^1.9.0",
+    "@grpc/proto-loader": "^0.7.8"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/code-retriever/bookmark-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/code-retriever/bookmark-cli/issues"
+  },
+  "homepage": "https://github.com/code-retriever/bookmark-cli#readme"
+}
