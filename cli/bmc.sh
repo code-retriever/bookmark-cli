@@ -3,10 +3,8 @@
 # bookmark-cli メインスクリプト
 # Mac/Linux ターミナルでディレクトリをブックマークするツール
 
-set -e
-
 # バージョン情報
-VERSION="0.1.0"
+VERSION="0.1.1"
 
 # デフォルト設定
 DEFAULT_BM_DIR="$HOME/.bm"
@@ -1041,7 +1039,7 @@ bookmark_ui() {
         --border \
         --prompt="Select bookmark: " \
         --preview-window=right:50% \
-        --preview="name=\$(/usr/bin/awk '{print \$1}' <<< {}); line=\$(/usr/bin/grep \"^\$name:\" \"$BM_FILE\"); path=\$(/usr/bin/cut -d: -f2 <<< \"\$line\"); desc=\$(/usr/bin/cut -d: -f3 <<< \"\$line\"); tags=\$(/usr/bin/cut -d: -f4 <<< \"\$line\"); echo \"Name: \$name\"; echo \"Path: \$path\"; [ -n \"\$desc\" ] && echo \"Description: \$desc\"; [ -n \"\$tags\" ] && echo \"Tags: \$tags\"; echo \"\"; if [ -d \"\$path\" ]; then echo \"Status: Directory exists ✓\"; echo \"\"; /bin/ls -la \"\$path\" 2>/dev/null | /usr/bin/head -10; else echo \"Status: Directory not found ✗\"; fi" \
+        --preview='name=$(echo {} | awk "{print \$1}"); if [ -z "$name" ]; then echo "Error: Could not extract bookmark name"; exit 1; fi; line=$(grep "^$name:" '"$BM_FILE"' 2>/dev/null); if [ -z "$line" ]; then echo "Error: Bookmark not found in file"; echo "BM_FILE: '"$BM_FILE"'"; exit 1; fi; path=$(echo "$line" | /usr/bin/cut -d: -f2); desc=$(echo "$line" | /usr/bin/cut -d: -f3); tags=$(echo "$line" | /usr/bin/cut -d: -f4); echo "Name: $name"; echo "Path: $path"; [ -n "$desc" ] && echo "Description: $desc"; [ -n "$tags" ] && echo "Tags: $tags"; echo ""; if [ -d "$path" ]; then echo "Status: Directory exists ✓"; echo ""; ls -la "$path" 2>/dev/null | /usr/bin/head -10; else echo "Status: Directory not found ✗"; echo "Searched path: $path"; fi' \
         --bind="ctrl-r:reload(cat $temp_file)" \
         --header="Enter: Navigate, Ctrl-C: Cancel, Ctrl-R: Refresh" \
     ) || {
@@ -1207,7 +1205,5 @@ main() {
     esac
 }
 
-# スクリプトが直接実行された場合のみmain関数を呼び出す
-if [ "${BASH_SOURCE-}" = "${0}" ] || [ -z "${BASH_SOURCE+x}" ]; then
-    main "$@"
-fi
+# スクリプトとして直接実行
+main "$@"

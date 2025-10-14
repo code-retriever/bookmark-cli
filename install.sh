@@ -10,7 +10,7 @@ VERSION="0.1.0"
 PROGRAM_NAME="bookmark-cli"
 
 # デフォルト設定
-DEFAULT_PREFIX="/usr/local"
+DEFAULT_PREFIX="$HOME/.local"
 DEFAULT_BIN_DIR="$DEFAULT_PREFIX/bin"
 
 # カラー出力
@@ -56,7 +56,7 @@ Usage:
     install.sh [options]
 
 Options:
-    --prefix=DIR            インストール先ディレクトリ (デフォルト: $DEFAULT_PREFIX)
+    --prefix=DIR            インストール先ディレクトリ (デフォルト: ~/.local)
     --bin-dir=DIR           バイナリディレクトリ (デフォルト: PREFIX/bin)
     --alias-bm              'bm' エイリアスを作成
     --xdg                   XDG Base Directory 設定を有効化
@@ -142,6 +142,25 @@ load_env_vars() {
     [ -n "$BIN_DIR" ] && BIN_DIR="$BIN_DIR"
 }
 
+# リモートインストール用ファイルダウンロード
+download_remote_files() {
+    local repo_url="https://raw.githubusercontent.com/code-retriever/bookmark-cli/main"
+    local temp_dir="$(mktemp -d)"
+
+    # ログをstderrに出力（stdoutは戻り値用）
+    log_info "Downloading files from GitHub..." >&2
+
+    # cli/bmc.shをダウンロード
+    if ! curl -sSL -o "$temp_dir/bmc.sh" "$repo_url/cli/bmc.sh"; then
+        log_error "Failed to download bmc.sh from GitHub" >&2
+        rm -rf "$temp_dir"
+        exit 1
+    fi
+
+    chmod +x "$temp_dir/bmc.sh"
+    echo "$temp_dir"
+}
+
 # 依存関係チェック
 check_dependencies() {
     local missing_deps=""
@@ -190,10 +209,20 @@ install_files() {
     local source_dir="$(dirname "$0")"
     local main_script="$source_dir/cli/bmc.sh"
     local target_bmc="$BIN_DIR/bmc"
+    local cleanup_temp=""
 
-    # メインスクリプトの存在確認
+    # リモートインストールモードの検出
+    if [ ! -f "$main_script" ]; then
+        log_info "Local files not found. Switching to remote installation mode..."
+        local temp_dir=$(download_remote_files)
+        main_script="$temp_dir/bmc.sh"
+        cleanup_temp="$temp_dir"
+    fi
+
+    # メインスクリプトの存在確認（再チェック）
     if [ ! -f "$main_script" ]; then
         log_error "Source file not found: $main_script"
+        [ -n "$cleanup_temp" ] && rm -rf "$cleanup_temp"
         exit 1
     fi
 
@@ -204,12 +233,20 @@ install_files() {
         log_info "Installing: bmc -> $target_bmc"
         cp "$main_script" "$target_bmc" || {
             log_error "Failed to copy $main_script to $target_bmc"
+            [ -n "$cleanup_temp" ] && rm -rf "$cleanup_temp"
             exit 1
         }
         chmod +x "$target_bmc" || {
             log_error "Failed to make $target_bmc executable"
+            [ -n "$cleanup_temp" ] && rm -rf "$cleanup_temp"
             exit 1
         }
+    fi
+
+    # 一時ディレクトリのクリーンアップ
+    if [ -n "$cleanup_temp" ]; then
+        rm -rf "$cleanup_temp"
+        log_info "Cleaned up temporary files" >&2
     fi
 
     # bmエイリアスの作成
@@ -231,7 +268,35 @@ install_files() {
 update_shell_config() {
     local shell_configs=""
     local path_line="export PATH=\"$BIN_DIR:\$PATH\""
-    local source_line="source \"$BIN_DIR/bmc\""
+
+    # ラッパー関数定義
+    local wrapper_function="# Bookmark CLI wrapper function
+bmc() {
+    local bmc_path=\"$BIN_DIR/bmc\"
+    local result exit_code
+
+    case \"\$1\" in
+        go|g|ui|browse|fz)
+            # ディレクトリ移動コマンド：出力をキャプチャ
+            result=\$(\"\$bmc_path\" \"\$@\" 2>&1)
+            exit_code=\$?
+
+            if [ \$exit_code -eq 0 ] && [ -d \"\$result\" ]; then
+                # 出力が有効なディレクトリなら移動
+                cd \"\$result\" || return 1
+                echo \"Navigated to: \$result\"
+            else
+                # それ以外はそのまま表示
+                echo \"\$result\"
+                return \$exit_code
+            fi
+            ;;
+        *)
+            # その他のコマンドは直接実行
+            \"\$bmc_path\" \"\$@\"
+            ;;
+    esac
+}"
 
     # XDG Base Directory設定
     local xdg_lines=""
@@ -255,7 +320,7 @@ export BM_HISTORY=\"\$XDG_DATA_HOME/bookmark-cli/history\""
     if [ -z "$shell_configs" ]; then
         log_warning "Shell configuration files not found. Please manually add:"
         log_warning "  export PATH=\"$BIN_DIR:\$PATH\""
-        log_warning "  source \"$BIN_DIR/bmc\""
+        log_warning "  # And the bmc wrapper function"
         if [ "$XDG_MODE" = true ]; then
             log_warning "  # XDG Base Directory configuration"
             log_warning "  export XDG_DATA_HOME=\"\${XDG_DATA_HOME:-\$HOME/.local/share}\""
@@ -267,7 +332,7 @@ export BM_HISTORY=\"\$XDG_DATA_HOME/bookmark-cli/history\""
 
     for config in $shell_configs; do
         local needs_path=true
-        local needs_source=true
+        local needs_wrapper=true
         local needs_xdg=false
 
         # 既にPATHが設定されているかチェック
@@ -276,10 +341,10 @@ export BM_HISTORY=\"\$XDG_DATA_HOME/bookmark-cli/history\""
             needs_path=false
         fi
 
-        # 既にsourceが設定されているかチェック
-        if grep -q "source.*bmc" "$config" 2>/dev/null; then
-            log_info "Source already configured in $config"
-            needs_source=false
+        # 既にbmc関数が設定されているかチェック
+        if grep -q "^bmc()" "$config" 2>/dev/null || grep -q "^bmc ()" "$config" 2>/dev/null; then
+            log_info "bmc wrapper function already configured in $config"
+            needs_wrapper=false
         fi
 
         # XDG設定が必要かチェック
@@ -291,25 +356,92 @@ export BM_HISTORY=\"\$XDG_DATA_HOME/bookmark-cli/history\""
             fi
         fi
 
-        if [ "$needs_path" = false ] && [ "$needs_source" = false ] && [ "$needs_xdg" = false ]; then
+        if [ "$needs_path" = false ] && [ "$needs_wrapper" = false ] && [ "$needs_xdg" = false ]; then
             continue
         fi
 
         if [ "$DRY_RUN" = true ]; then
             [ "$needs_path" = true ] && log_info "Would add PATH to: $config"
-            [ "$needs_source" = true ] && log_info "Would add source to: $config"
+            [ "$needs_wrapper" = true ] && log_info "Would add bmc wrapper function to: $config"
             [ "$needs_xdg" = true ] && log_info "Would add XDG configuration to: $config"
         else
             log_info "Updating configuration in: $config"
             echo "" >> "$config"
             echo "# Added by bookmark-cli installer" >> "$config"
             [ "$needs_path" = true ] && echo "$path_line" >> "$config"
-            [ "$needs_source" = true ] && echo "$source_line" >> "$config"
+            if [ "$needs_wrapper" = true ]; then
+                echo "$wrapper_function" >> "$config"
+            fi
             if [ "$needs_xdg" = true ]; then
                 echo "$xdg_lines" >> "$config"
             fi
         fi
     done
+}
+
+# 既存ブックマークを新しいXDG準拠の場所にマイグレーション
+migrate_bookmarks() {
+    # XDGモードが有効でない場合は何もしない
+    if [ "$XDG_MODE" != true ]; then
+        return
+    fi
+
+    # 既存の ~/.bm/ ディレクトリをチェック
+    local old_bm_dir="$HOME/.bm"
+    local old_bookmarks="$old_bm_dir/bookmarks"
+    local old_history="$old_bm_dir/history"
+
+    # 既存データがない場合は何もしない
+    if [ ! -f "$old_bookmarks" ]; then
+        return
+    fi
+
+    # 新しいXDG準拠のディレクトリ
+    local xdg_data_home="${XDG_DATA_HOME:-$HOME/.local/share}"
+    local new_bm_dir="$xdg_data_home/bookmark-cli"
+    local new_bookmarks="$new_bm_dir/bookmarks"
+    local new_history="$new_bm_dir/history"
+
+    # 既に新しい場所にデータがある場合はスキップ
+    if [ -f "$new_bookmarks" ]; then
+        log_info "XDG bookmarks already exist. Skipping migration."
+        return
+    fi
+
+    # マイグレーション実行
+    log_info "Found existing bookmarks in ~/.bm/"
+    log_info "Migrating to XDG Base Directory: $new_bm_dir"
+
+    if [ "$DRY_RUN" = true ]; then
+        log_info "Would create directory: $new_bm_dir"
+        log_info "Would copy: $old_bookmarks -> $new_bookmarks"
+        if [ -f "$old_history" ]; then
+            log_info "Would copy: $old_history -> $new_history"
+        fi
+    else
+        # 新しいディレクトリを作成
+        mkdir -p "$new_bm_dir" || {
+            log_error "Failed to create directory: $new_bm_dir"
+            return 1
+        }
+
+        # ブックマークをコピー
+        cp "$old_bookmarks" "$new_bookmarks" || {
+            log_error "Failed to copy bookmarks"
+            return 1
+        }
+        log_success "Migrated bookmarks to $new_bookmarks"
+
+        # 履歴をコピー（存在する場合）
+        if [ -f "$old_history" ]; then
+            cp "$old_history" "$new_history" || {
+                log_warning "Failed to copy history"
+            }
+            log_success "Migrated history to $new_history"
+        fi
+
+        log_info "Migration completed. Original files in ~/.bm/ are preserved as backup."
+    fi
 }
 
 # MCP サーバーをインストール
@@ -366,6 +498,7 @@ main_install() {
     create_directories
     install_files
     update_shell_config
+    migrate_bookmarks
     install_mcp_server
 
     if [ "$DRY_RUN" = true ]; then

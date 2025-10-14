@@ -14,25 +14,45 @@ Mac/Linux ターミナルでディレクトリをブックマークし、CLI と
 
 ## インストール
 
+### 標準インストール（推奨）
+
+sudo不要で簡単インストール：
+
 ```bash
 # フルインストール (CLI + MCP + エイリアス + XDG対応)
 curl -sSL https://raw.githubusercontent.com/code-retriever/bookmark-cli/main/install.sh | bash -s -- --with-mcp --alias-bm --xdg
 
-# 標準インストール
+# 基本インストール
 curl -sSL https://raw.githubusercontent.com/code-retriever/bookmark-cli/main/install.sh | bash
-
-# XDG Base Directory対応でインストール
-./install.sh --xdg
 ```
+
+**インストール先**: `~/.local/bin/bmc`
+
+### システムワイドインストール（オプション）
+
+すべてのユーザーで使用する場合：
+
+```bash
+# まずリポジトリをクローン
+git clone https://github.com/code-retriever/bookmark-cli.git
+cd bookmark-cli
+
+# sudo でインストール
+sudo ./install.sh --prefix=/usr/local --with-mcp --alias-bm --xdg
+```
+
+**インストール先**: `/usr/local/bin/bmc`
+
+⚠️ **注意**: `curl | sudo bash` はセキュリティリスクがあるため推奨しません。
 
 ### アンインストール
 
 ```bash
-# アンインストール実行
+# 標準インストールのアンインストール
 ./install.sh --uninstall
 
-# または、特定の場所からアンインストール
-./install.sh --uninstall --prefix=$HOME/.local
+# システムワイドインストールのアンインストール
+sudo ./install.sh --uninstall --prefix=/usr/local
 ```
 
 ## 使用方法
