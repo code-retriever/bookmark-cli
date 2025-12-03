@@ -25,6 +25,7 @@ PREFIX="$DEFAULT_PREFIX"
 BIN_DIR=""
 DRY_RUN=false
 ALIAS_BM=false
+ALIAS_TP=false
 XDG_MODE=false
 WITH_MCP=false
 UNINSTALL=false
@@ -59,6 +60,7 @@ Options:
     --prefix=DIR            インストール先ディレクトリ (デフォルト: ~/.local)
     --bin-dir=DIR           バイナリディレクトリ (デフォルト: PREFIX/bin)
     --alias-bm              'bm' エイリアスを作成
+    --alias-tp              'tp' (teleport) エイリアスを作成
     --xdg                   XDG Base Directory 設定を有効化
     --with-mcp              MCP サーバも同時にインストール
     --dry-run               実際のインストールは行わず、実行予定の操作を表示
@@ -74,7 +76,7 @@ Examples:
     ./install.sh --prefix=/opt/bookmark-cli
 
     # フル機能でインストール
-    ./install.sh --alias-bm --xdg --with-mcp
+    ./install.sh --alias-bm --alias-tp --xdg --with-mcp
 
     # ドライラン
     ./install.sh --dry-run
@@ -101,6 +103,9 @@ parse_args() {
                 ;;
             --alias-bm)
                 ALIAS_BM=true
+                ;;
+            --alias-tp)
+                ALIAS_TP=true
                 ;;
             --xdg)
                 XDG_MODE=true
@@ -262,6 +267,20 @@ install_files() {
             }
         fi
     fi
+
+    # tpエイリアスの作成
+    if [ "$ALIAS_TP" = true ]; then
+        local target_tp="$BIN_DIR/tp"
+        if [ "$DRY_RUN" = true ]; then
+            log_info "Would create alias: tp -> $target_tp"
+        else
+            log_info "Creating alias: tp"
+            ln -sf "$target_bmc" "$target_tp" || {
+                log_error "Failed to create tp alias"
+                exit 1
+            }
+        fi
+    fi
 }
 
 # シェル設定を更新
@@ -298,6 +317,39 @@ bmc() {
     esac
 }"
 
+    # tpラッパー関数定義
+    local tp_wrapper_function=""
+    if [ "$ALIAS_TP" = true ]; then
+        tp_wrapper_function="
+# Teleport (tp) wrapper function for bookmark-cli
+tp() {
+    local tp_path=\"$BIN_DIR/tp\"
+    local result exit_code
+
+    case \"\$1\" in
+        go|g|ui|browse|fz)
+            # ディレクトリ移動コマンド：出力をキャプチャ
+            result=\$(\"\$tp_path\" \"\$@\" 2>&1)
+            exit_code=\$?
+
+            if [ \$exit_code -eq 0 ] && [ -d \"\$result\" ]; then
+                # 出力が有効なディレクトリなら移動
+                cd \"\$result\" || return 1
+                echo \"Navigated to: \$result\"
+            else
+                # それ以外はそのまま表示
+                echo \"\$result\"
+                return \$exit_code
+            fi
+            ;;
+        *)
+            # その他のコマンドは直接実行
+            \"\$tp_path\" \"\$@\"
+            ;;
+    esac
+}"
+    fi
+
     # XDG Base Directory設定
     local xdg_lines=""
     if [ "$XDG_MODE" = true ]; then
@@ -333,6 +385,7 @@ export BM_HISTORY=\"\$XDG_DATA_HOME/bookmark-cli/history\""
     for config in $shell_configs; do
         local needs_path=true
         local needs_wrapper=true
+        local needs_tp_wrapper=false
         local needs_xdg=false
 
         # 既にPATHが設定されているかチェック
@@ -345,6 +398,15 @@ export BM_HISTORY=\"\$XDG_DATA_HOME/bookmark-cli/history\""
         if grep -q "^bmc()" "$config" 2>/dev/null || grep -q "^bmc ()" "$config" 2>/dev/null; then
             log_info "bmc wrapper function already configured in $config"
             needs_wrapper=false
+        fi
+
+        # tpラッパー関数が必要かチェック
+        if [ "$ALIAS_TP" = true ]; then
+            if grep -q "^tp()" "$config" 2>/dev/null || grep -q "^tp ()" "$config" 2>/dev/null; then
+                log_info "tp wrapper function already configured in $config"
+            else
+                needs_tp_wrapper=true
+            fi
         fi
 
         # XDG設定が必要かチェック
@@ -363,6 +425,7 @@ export BM_HISTORY=\"\$XDG_DATA_HOME/bookmark-cli/history\""
         if [ "$DRY_RUN" = true ]; then
             [ "$needs_path" = true ] && log_info "Would add PATH to: $config"
             [ "$needs_wrapper" = true ] && log_info "Would add bmc wrapper function to: $config"
+            [ "$needs_tp_wrapper" = true ] && log_info "Would add tp wrapper function to: $config"
             [ "$needs_xdg" = true ] && log_info "Would add XDG configuration to: $config"
         else
             log_info "Updating configuration in: $config"
@@ -371,6 +434,9 @@ export BM_HISTORY=\"\$XDG_DATA_HOME/bookmark-cli/history\""
             [ "$needs_path" = true ] && echo "$path_line" >> "$config"
             if [ "$needs_wrapper" = true ]; then
                 echo "$wrapper_function" >> "$config"
+            fi
+            if [ "$needs_tp_wrapper" = true ]; then
+                echo "$tp_wrapper_function" >> "$config"
             fi
             if [ "$needs_xdg" = true ]; then
                 echo "$xdg_lines" >> "$config"
@@ -462,6 +528,10 @@ uninstall() {
 
     if [ "$ALIAS_BM" = true ]; then
         files_to_remove="$files_to_remove $BIN_DIR/bm"
+    fi
+
+    if [ "$ALIAS_TP" = true ]; then
+        files_to_remove="$files_to_remove $BIN_DIR/tp"
     fi
 
     for file in $files_to_remove; do
