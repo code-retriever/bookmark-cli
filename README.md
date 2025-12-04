@@ -20,7 +20,10 @@ sudo不要で簡単インストール：
 
 ```bash
 # フルインストール (CLI + MCP + エイリアス + XDG対応)
-curl -sSL https://raw.githubusercontent.com/code-retriever/bookmark-cli/main/install.sh | bash -s -- --with-mcp --alias-bm --xdg
+curl -sSL https://raw.githubusercontent.com/code-retriever/bookmark-cli/main/install.sh | bash -s -- --with-mcp --alias-bm --alias-tp --xdg
+
+# エイリアス付きインストール (bm と tp)
+curl -sSL https://raw.githubusercontent.com/code-retriever/bookmark-cli/main/install.sh | bash -s -- --alias-bm --alias-tp
 
 # 基本インストール
 curl -sSL https://raw.githubusercontent.com/code-retriever/bookmark-cli/main/install.sh | bash
@@ -38,7 +41,7 @@ git clone https://github.com/code-retriever/bookmark-cli.git
 cd bookmark-cli
 
 # sudo でインストール
-sudo ./install.sh --prefix=/usr/local --with-mcp --alias-bm --xdg
+sudo ./install.sh --prefix=/usr/local --with-mcp --alias-bm --alias-tp --xdg
 ```
 
 **インストール先**: `/usr/local/bin/bmc`
@@ -97,6 +100,30 @@ bmc remove project     # 'project' ブックマークを削除
 ```
 
 > **注意**: `bmc go` でディレクトリ移動を行うには、bmcがシェル関数として読み込まれている必要があります。インストーラーが自動で設定しますが、手動インストールの場合は `source /path/to/bmc.sh` を実行してください。
+
+### tp (Teleport) Alias
+
+`tp` は `bmc` のショートエイリアスで、すべてのコマンドを同じように使用できます：
+
+```bash
+# tp で同じ操作が可能
+tp add project                       # ブックマークを追加
+tp go project                        # 'project' へ移動
+tp list                              # ブックマーク一覧
+tp ui                                # インタラクティブUI
+
+# さらに短いコマンド組み合わせ
+tp g work                            # 'work' へ移動
+tp a newproj                         # 新規ブックマーク追加
+tp ls                                # 一覧表示
+```
+
+**インストール:**
+```bash
+./install.sh --alias-tp
+```
+
+> **注**: シェル補完機能は、[feature/shell-completion PR](https://github.com/code-retriever/bookmark-cli/pull/1) がマージされた後に `tp` コマンドでも利用可能になります。
 
 ### カラー出力機能
 
@@ -206,6 +233,7 @@ bmc go                 # 引数なしで履歴からfzfで選択
 
 | コマンド | エイリアス |
 |----------|------------|
+| `bmc` | `bm`, `tp` (要インストール) |
 | `bmc add` | `bmc a` |
 | `bmc go` | `bmc g` |
 | `bmc list` | `bmc ls` |
