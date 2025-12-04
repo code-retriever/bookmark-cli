@@ -85,3 +85,4 @@ complete -c bmc -f -n '__fish_bmc_using_command clean' -l dry-run -d 'Preview wi
 
 # Alias support
 complete -c bm -w bmc
+complete -c tp -w bmc

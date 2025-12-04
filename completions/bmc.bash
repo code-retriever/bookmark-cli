@@ -99,3 +99,4 @@ _bmc_get_tags() {
 
 complete -F _bmc_completions bmc
 command -v bm >/dev/null 2>&1 && complete -F _bmc_completions bm
+command -v tp >/dev/null 2>&1 && complete -F _bmc_completions tp

@@ -1,4 +1,4 @@
-#compdef bmc bm
+#compdef bmc bm tp
 
 _bmc() {
     local curcontext="$curcontext" state line
