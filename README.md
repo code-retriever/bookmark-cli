@@ -74,6 +74,67 @@ source ~/.zshrc
 # または新しいターミナルを開く
 ```
 
+### シェル補完のセットアップ（オプション）
+
+タブ補完機能を使うと、コマンド入力が格段に便利になります:
+
+```bash
+bmc g <TAB>         # ブックマーク一覧を表示
+bmc g sam<TAB>      # 'sample-project' に補完
+bmc list --tag <TAB> # タグ一覧を表示
+```
+
+#### Bash
+
+`~/.bashrc` に以下を追加:
+
+```bash
+# bookmark-cli completion
+source ~/.local/share/bookmark-cli/completions/bmc.bash
+```
+
+設定を反映:
+```bash
+source ~/.bashrc
+```
+
+#### Zsh
+
+`~/.zshrc` に以下を追加:
+
+```bash
+# bookmark-cli completion
+fpath=(~/.local/share/bookmark-cli/completions $fpath)
+autoload -Uz compinit && compinit
+```
+
+設定を反映:
+```bash
+source ~/.zshrc
+```
+
+#### Fish
+
+補完ファイルをシンボリックリンク:
+
+```bash
+mkdir -p ~/.config/fish/completions
+ln -s ~/.local/share/bookmark-cli/completions/bmc.fish ~/.config/fish/completions/
+```
+
+Fishは次回起動時に自動的に補完を読み込みます。
+
+#### 補完機能の確認
+
+セットアップ後、以下でテスト:
+
+```bash
+bmc <TAB>            # 全コマンドを表示
+bmc g <TAB>          # ブックマーク一覧を表示
+bmc g sam<TAB>       # 'sample-project' に補完
+bmc list --tag <TAB> # タグ一覧を表示
+```
+
 ### 基本コマンド
 
 ```bash

@@ -1,0 +1,123 @@
+#compdef bmc bm
+
+_bmc() {
+    local curcontext="$curcontext" state line
+    typeset -A opt_args
+
+    local -a commands
+    commands=(
+        'add:Add a bookmark for a directory'
+        'a:Alias for add'
+        'go:Navigate to a bookmarked directory'
+        'g:Alias for go'
+        'list:List all bookmarks'
+        'ls:Alias for list'
+        'tags:Show all tags'
+        'ui:Interactive UI with fzf'
+        'browse:Alias for ui'
+        'fz:Alias for ui'
+        'remove:Remove a bookmark'
+        'rm:Alias for remove'
+        'del:Alias for remove'
+        'rename:Rename a bookmark'
+        'mv:Alias for rename'
+        'export:Export bookmarks to JSON'
+        'exp:Alias for export'
+        'import:Import bookmarks from file'
+        'imp:Alias for import'
+        'edit:Edit bookmark file with $EDITOR'
+        'e:Alias for edit'
+        'validate:Validate all bookmarks'
+        'check:Alias for validate'
+        'clean:Remove invalid bookmarks'
+        'doctor:Show bookmark health diagnostic'
+        'recent:Show recently used bookmarks'
+        'r:Alias for recent'
+        'frequent:Show frequently used bookmarks'
+        'stats:Show bookmark usage statistics'
+        'help:Show help message'
+        'h:Alias for help'
+    )
+
+    _arguments -C \
+        '1: :->command' \
+        '*:: :->args'
+
+    case $state in
+        command)
+            _describe -t commands 'bmc commands' commands
+            ;;
+        args)
+            local cmd="${words[1]}"
+
+            # Normalize aliases
+            case "$cmd" in
+                a) cmd="add" ;;
+                g) cmd="go" ;;
+                ls) cmd="list" ;;
+                browse|fz) cmd="ui" ;;
+                rm|del) cmd="remove" ;;
+                mv) cmd="rename" ;;
+                exp) cmd="export" ;;
+                imp) cmd="import" ;;
+                e) cmd="edit" ;;
+                check) cmd="validate" ;;
+                r) cmd="recent" ;;
+                h) cmd="help" ;;
+            esac
+
+            case "$cmd" in
+                add)
+                    _arguments \
+                        '1:bookmark name:' \
+                        '2:path:_directories' \
+                        '(-d --description)'{-d,--description}'[Description]:description:' \
+                        '(-t --tags)'{-t,--tags}'[Tags (comma-separated)]:tags:'
+                    ;;
+                go|remove)
+                    _arguments '1:bookmark:_bmc_bookmarks'
+                    ;;
+                rename)
+                    _arguments \
+                        '1:old bookmark name:_bmc_bookmarks' \
+                        '2:new bookmark name:'
+                    ;;
+                list)
+                    _arguments '--tag[Filter by tag]:tag:_bmc_tags'
+                    ;;
+                clean)
+                    _arguments '--dry-run[Preview without removing]'
+                    ;;
+                import|export)
+                    _arguments '1:file:_files'
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+_bmc_bookmarks() {
+    local -a bookmarks
+    local bmc_cmd="bmc"
+
+    command -v "$bmc_cmd" >/dev/null 2>&1 || return 1
+
+    bookmarks=(${(f)"$(NO_COLOR=1 $bmc_cmd list 2>/dev/null | \
+        awk 'NR > 2 && NF > 0 && $1 != "Tags:" { print $1 }')"})
+
+    _describe 'bookmarks' bookmarks
+}
+
+_bmc_tags() {
+    local -a tags
+    local bmc_cmd="bmc"
+
+    command -v "$bmc_cmd" >/dev/null 2>&1 || return 1
+
+    tags=(${(f)"$(NO_COLOR=1 $bmc_cmd tags 2>/dev/null | \
+        awk 'NF > 0 && $1 != "All" && $1 != "No" { print $1 }')"})
+
+    _describe 'tags' tags
+}
+
+_bmc "$@"
